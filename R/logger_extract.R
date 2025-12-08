@@ -1,11 +1,32 @@
-
+#' Extract AIMS MMP Logger Data
+#'
+#' @param SelectedYears Numeric Vector. The year(s) of data you want to access.
+#' @param SelectedLoggers Character Vector. The name(s) of the logger(s) you want to access.
+#' @param FilterFlags Boolean. Do you want to filter the data by its quality flags? This defaults to TRUE (yes).
+#' @param FlagTags Numeric Vector. A vector of flag tags to keep, choices are: 0 =  No_QC_performed, 
+#' 1 = Good_data, 2 = Probably_good_data, 3 = Bad_data_that_are_potentially_correctable, 4 = Bad_data, 5 = Value_changed. 
+#' Advice from data providers is to keep only tags 1 and 2. By default only tags 1 and 2 are kept.
+#' @param AggregateToDaily Boolean. Do you want to aggregate data to daily values? This defaults to FALSE (no) and returns
+#' 15-minute interval data.
+#'
+#' @returns A long format dataframe
+#'
+#' @export
+#' 
+#' @examples
+#' wq_data <- logger_extract(
+#' SelectedYears = 2025, 
+#' SelectedLoggers = "BUR2", 
+#' FilterFlags = TRUE, 
+#' FlagTags = c(1,2), 
+#' AggregateToDaily = FALSE)
 
 logger_extract <- function(
   SelectedYears, 
   SelectedLoggers, 
   FilterFlags = TRUE, 
-  DataFlagsKept = c(1,2), 
-  DailyAggregate = FALSE){
+  FlagTags = c(1,2), 
+  AggregateToDaily = FALSE){
 
   #create a pairwise combination of the years and loggers to form the inputs for each query
   target_matrix <- expand.grid(Years = SelectedYears, Loggers = SelectedLoggers)
@@ -49,7 +70,7 @@ logger_extract <- function(
       nc <- ncdf4::nc_open(completed_url)
 
       #extract the acknowledgement text
-      ack_text <- ncatt_get(nc, 0, "acknowledgement")$value
+      ack_text <- ncdf4::ncatt_get(nc, 0, "acknowledgement")$value
 
       #clean the text up
       ack_text <- stringr::str_extract(ack_text, "(?<=\")([^\"]*)(?=\")")
@@ -62,7 +83,7 @@ logger_extract <- function(
       vec_of_data_names <- stringr::str_replace(variable_names, "TIMESERIES", dimension_names)
 
       #map over the vector and extract the data associated with each name. Store the result in a list
-      target_data <- purrr::map(vec_of_data_names, function(x) ncvar_get(nc, x))
+      target_data <- purrr::map(vec_of_data_names, function(x) ncdf4::ncvar_get(nc, x))
                 
       #name each item in the list using the vector of variable and dimension names
       names(target_data) <- vec_of_data_names
@@ -137,11 +158,11 @@ logger_extract <- function(
   if (FilterFlags){
 
     final_df <- final_df |> 
-      dplyr::filter(Flags %in% DataFlagsKept)
+      dplyr::filter(Flags %in% FlagTags)
   }
 
   #if the user wants to aggregate data to daily values rather than 15minute intervals, do that
-  if (DailyAggregate){
+  if (AggregateToDaily){
     
   final_df <- final_df |> 
     dplyr::group_by(Date, Latitude, Longitude, Logger, Indicator, Units, Acknowledgement) |> 
@@ -154,8 +175,5 @@ logger_extract <- function(
 return(final_df)
 
 }
-
-
-test <- logger_extract(2025, "BUR2", F, c(1,2), F)
 
 
