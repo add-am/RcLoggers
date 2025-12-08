@@ -7,7 +7,8 @@
 
 <!-- badges: end -->
 
-The goal of RcLoggers is to …
+The goal of RcLoggers is to get a complex function and requires too much
+memory to run via Shiny onto your computer so you can run it yourself.
 
 ## Installation
 
@@ -19,35 +20,31 @@ You can install the development version of RcLoggers from
 pak::pak("add-am/RcLoggers")
 ```
 
-## Example
+## Using The Function
 
-This is a basic example which shows you how to solve a common problem:
+Currently only one function is provided: `logger_extract()`. A basic
+example of using this function is as follows:
 
 ``` r
+#load the library
 library(RcLoggers)
-## basic example code
+
+#run the function (basic)
+data_extract <- logger_extract(
+  Years = 2025,
+  Loggers = "BUR2"
+)
 ```
 
-What is special about using `README.Rmd` instead of just `README.md`?
-You can include R chunks like so:
+This function does have some more advanced options:
 
 ``` r
-summary(cars)
-#>      speed           dist       
-#>  Min.   : 4.0   Min.   :  2.00  
-#>  1st Qu.:12.0   1st Qu.: 26.00  
-#>  Median :15.0   Median : 36.00  
-#>  Mean   :15.4   Mean   : 42.98  
-#>  3rd Qu.:19.0   3rd Qu.: 56.00  
-#>  Max.   :25.0   Max.   :120.00
+#run the function (detailed)
+data_extract <- logger_extract(
+  Years = c(2024, 2025), #you can dowload more than one year
+  Loggers = c("BUR1", "BUR2"), #you can download more than one logger
+  FilterFlags = TRUE, #you can filter data by quality flag
+  FlagTags = c(1,2), #if you decide to filter you then provide the flag tags to keep
+  AggregateToDaily = FALSE #you can aggregate data to get a daily value rather than a 10-minute value
+)
 ```
-
-You’ll still need to render `README.Rmd` regularly, to keep `README.md`
-up-to-date. `devtools::build_readme()` is handy for this.
-
-You can also embed plots, for example:
-
-<img src="man/figures/README-pressure-1.png" width="100%" />
-
-In that case, don’t forget to commit and push the resulting figure
-files, so they display on GitHub and CRAN.
