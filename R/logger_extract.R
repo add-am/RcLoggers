@@ -11,6 +11,7 @@
 #' 10-minute interval data.
 #' @param AggreationType Character String. Defines the type of aggregation to apply, one of: Hourly, or Daily
 #' @param SmallTables Boolean. Do you want to return small tables (less than 1,500 rows per table). This defaults to FALSE (no)
+#' @param RowCount Numeric String. The number of rows in each "small table", defaults to 1500
 #'
 #' @returns A long format dataframe
 #'
@@ -24,19 +25,66 @@
 #' FlagTags = c(1,2), 
 #' Aggregate = FALSE,
 #' SmallTables = FALSE
+#' RowCount = 1500
 #' )
 
 logger_extract <- function(
   Years, 
   Loggers, 
-  Indicators,
+  Indicators = c("chlorophyll", "turbidity"),
   FilterFlags = TRUE, 
   FlagTags = c(1,2), 
   Aggregate = FALSE,
   AggregationType,
   SmallTables = FALSE,
-  RowCount
+  RowCount = 1500
 ){
+
+  #check required arguments
+  if (missing(Years)){stop("You must supply at least one year to target.")}
+  if (missing(Loggers)){stop("You must supply at least one logger to target.")}
+
+  #standardised character inputs (note, loggers go to caps, indicators go to lowercase)
+  Loggers <- stringr::str_to_upper(Loggers)
+  Indicators <- stringr::str_to_lower(Indicators)
+  
+  #define input choices
+  logger_choices <- c(
+    "BUR1", "BUR13", "BUR2", "BUR4", "FTZ1", "FTZ2", "FTZ6", "RM1",  "RM10", "RM7",  
+    "RM8", "TUL10", "TUL3", "WHI1", "WHI4", "WHI5", "WHI6"
+  )
+  indicator_choices <- c("chlorophyll", "turbidity")
+  flag_choices <- c(0, 1, 2, 3, 4, 5)
+
+  #check input choices
+  if (!any(Loggers %in% logger_choices)){
+    stop("Invalid 'Loggers' argument: must be one of ", paste(logger_choices, collapse = ", "))
+  }
+  if (!any(Indicators %in% indicator_choices)){
+    stop("Invalid 'Indicators' argument: must be one of ", paste(indicator_choices, collapse = ", "))
+  }
+  if (!any(FlagTags %in% flag_choices)){
+    stop("Invalid 'FlagTags' argument: must be one of ", paste(flag_choices, collapse = ", "))
+  }
+
+  #create a specialised check for the case when aggregate is true
+  if (Aggregate){
+    
+    #check if the argument is present
+    if (missing(AggregationType)){stop("If aggregating data, you must supply an aggregation type.")}
+
+    #standardise argument
+    AggregationType <- stringr::str_to_lower(AggregationType)
+
+    #define input choices
+    aggregation_choices <- c("hourly", "daily")
+
+    #check input choices
+    if (!(AggregationType %in% aggregation_choices)){
+      stop("Invalid 'AggregationType' argument: must be one of ", paste(aggregation_choices, collapse = ", "))
+    }
+
+  }
 
   #create a pairwise combination of the years and loggers to form the inputs for each query
   target_matrix <- expand.grid(Years = Years, Loggers = Loggers)
@@ -154,99 +202,114 @@ logger_extract <- function(
 
   #this returns a list the length of nrow(target_matrix)
 
-  
+  #if the user wants to return small tables (rather than full series) slice up all the tables
+  if (SmallTables){
+    
+    #map over the list of datasets (plus the number of total datasets)
+    list_of_dfs <- purrr::map2(retrieve_data, seq_along(retrieve_data), function(df, count){
 
+      #build a vector of min and max row indicies
+      min_indicies <- seq(1, nrow(df), RowCount)
+      max_indicies <- pmin(min_indicies + (RowCount-1), nrow(df))
+      
+      #and a vector of table names
+      table_names <- paste0(
+        target_matrix[count, 2], "_", 
+        target_matrix[count, 1], "_rows_", 
+        min_indicies, "_to_", max_indicies
+      )
 
-  #combine the list of dataframes into one large dataframe
-  #final_df <- dplyr::bind_rows(retrieve_data)
+      #slice up the dataframe into small chunks and return it as a list
+      small_tables <- purrr::map2(min_indicies, max_indicies, ~dplyr::slice(df, .x:.y))
+
+      #name each of the mini dataframes in the list
+      names(small_tables) <- table_names
+
+      #return the list of dataframes
+      small_tables
+    
+    })
+
+    #if the purr map occured more than once, flatten the list of lists
+    if (!all(seq_along(retrieve_data) <= 1)){list_of_dfs <- unlist(list_of_dfs, recursive = FALSE)}
+
+  } else {
+
+    #otherwise just update the object name
+    list_of_dfs <- retrieve_data
+
+  }
+
+  list_of_dfs
 
   #if the user only wants chla 
-  if (all(Indicators == "Chla")){final_df <- dplyr::filter(final_df, Results != "Turbidity")}
+  if (all(Indicators == "chlorophyll")){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Indicator != "Turbidity_ntu"))}
 
   #if the user only wants turbidity
-  if (all(Indicators == "Turbidity")){final_df <- dplyr::filter(final_df, Results != "Chlorophyll")}
+  if (all(Indicators == "turbidity")){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Indicator != "Chlorophyll_mgm3"))}
 
   #if the user wants to filter data by quality flag, do that (defaults to only having flags 1 and 2)
-  if (FilterFlags){final_df <- dplyr::filter(final_df, Flags %in% FlagTags)}
+  if (FilterFlags){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Flags %in% FlagTags))}
 
   #if the user wants to do some kind of aggregation
   if (Aggregate){
 
-    if (AggregationType == "Hourly"){
+    if (AggregationType == "hourly"){
 
-      #round DateTime to the nearest hour, then group and summarise
-      final_df <- final_df |> 
-        dplyr::mutate(DateTime = lubridate::round_date(DateTime, unit = "hour")) |> 
-        dplyr::group_by(DateTime, Latitude, Longitude, Logger, Indicator, Units, Attribution) |> 
-        dplyr::summarise(
-          Result = mean(Result, na.rm = TRUE),
-          Flags = paste(unique(Flags), collapse = ", ")
+      list_of_dfs <- purrr:::map(list_of_dfs, function(df){
+
+        #round DateTime to the nearest hour, then group and summarise
+        df |> 
+          dplyr::mutate(DateTime = lubridate::round_date(DateTime, unit = "hour")) |> 
+          dplyr::group_by(DateTime, Latitude, Longitude, Logger, Indicator, Attribution) |> 
+          dplyr::summarise(
+            Result = mean(Result, na.rm = TRUE),
+            Flags = paste(unique(Flags), collapse = ", ")
         )
-
+      })      
     }
 
-    if (AggregationType == "Daily"){
+    if (AggregationType == "daily"){
 
-      #round DateTime to the nearest day, then group and summarise
-      final_df <- final_df |> 
-        dplyr::mutate(DateTime = lubridate::round_date(DateTime, unit = "day")) |> 
-        dplyr::group_by(DateTime, Latitude, Longitude, Logger, Indicator, Units, Attribution) |> 
-        dplyr::summarise(
-          Result = mean(Result, na.rm = TRUE),
-          Flags = paste(unique(Flags), collapse = ", ")
-        )
+      list_of_dfs <- purrr::map(list_of_dfs, function(df){
 
-
+        #round DateTime to the nearest day, then group and summarise
+        df |> 
+          dplyr::mutate(DateTime = lubridate::round_date(DateTime, unit = "day")) |> 
+          dplyr::group_by(DateTime, Latitude, Longitude, Logger, Indicator, Attribution) |> 
+          dplyr::summarise(
+            Result = mean(Result, na.rm = TRUE),
+            Flags = paste(unique(Flags), collapse = ", ")
+          )
+      })      
     }
   }
 
-  return(final_df)
+  return(list_of_dfs)
 
 }
 
 
-for (i in 1:length(retrieve_data)){
 
-  #get one of the dataframes
-  data <- retrieve_data[[i]]
-
-  #slice it up into chunks
-
-  #build a vector of row indicies and table names
-  min_indicies <- seq(1, nrow(data), 1500)
-  max_indicies <- pmin(min_indicies + 1499, nrow(data))
-  table_names <- paste0(target_matrix[i, 2], "_", target_matrix[i,1], "_rows_", min_indicies, "_to_", max_indicies)
-
-  #list of dfs
-  test <- purrr::map2(min_indicies, max_indicies, ~dplyr::slice(data, .x:.y))
-
-  #name dfs in list
-  names(test) <- table_names
-
-}
+test <- logger_extract(2025, "BUR2", Indicators = c("Turbidity")) #works
+test <- logger_extract(c(2024, 2025), "BUR2", Indicators = c("Chla", "Turbidity"))#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"))#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Turbidity"))#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla"))#works
 
 
-test_result <- purrr::map2(retrieve_data, seq_along(retrieve_data), function(df, count){
-
-  #build a vector of row indicies and table names
-  min_indicies <- seq(1, nrow(df), 1500)
-  max_indicies <- pmin(min_indicies + 1499, nrow(df))
-  table_names <- paste0(
-    target_matrix[count, 2], "_", 
-    target_matrix[count, 1], "_rows_", 
-    min_indicies, "_to_", max_indicies
-  )
-
-  #list of dfs
-  test <- purrr::map2(min_indicies, max_indicies, ~dplyr::slice(df, .x:.y))
-
-  #name dfs in list
-  names(test) <- table_names
-
-  test
-})
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), FilterFlags = FALSE)#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), Aggregate = TRUE, AggregationType = "Hourly")#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), Aggregate = TRUE, AggregationType = "Daily")#works
+test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), SmallTables = TRUE, RowCount = 1500)#works
 
 
+
+#save
+purrr::map2(test_flat, names(test_flat), ~readr::write_csv(.x, paste0(.y,".csv")))
+
+
+readr::write_csv(test_flat[[1]], "test.csv")
 
 
 
