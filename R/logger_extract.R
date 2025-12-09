@@ -34,8 +34,8 @@ logger_extract <- function(
   FlagTags = c(1,2), 
   Aggregate = FALSE,
   AggregationType,
-  SmallTables = FALSE
-
+  SmallTables = FALSE,
+  RowCount
 ){
 
   #create a pairwise combination of the years and loggers to form the inputs for each query
@@ -152,8 +152,13 @@ logger_extract <- function(
               
   })
 
+  #this returns a list the length of nrow(target_matrix)
+
+  
+
+
   #combine the list of dataframes into one large dataframe
-  final_df <- dplyr::bind_rows(retrieve_data)
+  #final_df <- dplyr::bind_rows(retrieve_data)
 
   #if the user only wants chla 
   if (all(Indicators == "Chla")){final_df <- dplyr::filter(final_df, Results != "Turbidity")}
@@ -198,5 +203,51 @@ logger_extract <- function(
   return(final_df)
 
 }
+
+
+for (i in 1:length(retrieve_data)){
+
+  #get one of the dataframes
+  data <- retrieve_data[[i]]
+
+  #slice it up into chunks
+
+  #build a vector of row indicies and table names
+  min_indicies <- seq(1, nrow(data), 1500)
+  max_indicies <- pmin(min_indicies + 1499, nrow(data))
+  table_names <- paste0(target_matrix[i, 2], "_", target_matrix[i,1], "_rows_", min_indicies, "_to_", max_indicies)
+
+  #list of dfs
+  test <- purrr::map2(min_indicies, max_indicies, ~dplyr::slice(data, .x:.y))
+
+  #name dfs in list
+  names(test) <- table_names
+
+}
+
+
+test_result <- purrr::map2(retrieve_data, seq_along(retrieve_data), function(df, count){
+
+  #build a vector of row indicies and table names
+  min_indicies <- seq(1, nrow(df), 1500)
+  max_indicies <- pmin(min_indicies + 1499, nrow(df))
+  table_names <- paste0(
+    target_matrix[count, 2], "_", 
+    target_matrix[count, 1], "_rows_", 
+    min_indicies, "_to_", max_indicies
+  )
+
+  #list of dfs
+  test <- purrr::map2(min_indicies, max_indicies, ~dplyr::slice(df, .x:.y))
+
+  #name dfs in list
+  names(test) <- table_names
+
+  test
+})
+
+
+
+
 
 
