@@ -61,13 +61,22 @@ data_extract <- logger_extract(
  Years = c(2024, 2025), #you can dowload more than one year
  Loggers = c("BUR1", "BUR2"), #you can download more than one logger
  Indicators = "Chlorophyll", # if you only want one indicator you can define that (it defaults to chlorophyll and turbidity)
- FilterFlags = TRUE, #you can filter data by quality flag
- FlagTags = c(1,2),  #if you decide to filter you then provide the flag tags to keep
+ FilterFlags = TRUE, #filtering occurs by default, however you can customise or stop filtering
+ FlagTags = c(1,2), #by default flags 1 and 2 are kept, you can adjust this as needed
  Aggregate = TRUE, #you can aggregate data
  AggregationType = "Hourly" #if you do decide to aggregate, you need to define the type of aggregation (hourly or daily)
  SmallTables = TRUE #you can request that outputs are broken into several small tables 
  RowCount = 1500 #if you do want to break up tables, you can define the number of rows per table
 )
+
+```
+
+To see function documentation use the question mark syntax:
+
+```{r}
+#| eval: FALSE
+
+?logger_extract
 
 ```
 
@@ -83,5 +92,5 @@ purrr::walk2(data_extract, names(data_extract), ~readr::write_csv(.x, paste0(.y,
 
 where .x = data_extract, and .y = the names of items in the list:
 
-![]("man/figures/save_code_example.png")
+![](man/figures/save_code_example.png)
 
