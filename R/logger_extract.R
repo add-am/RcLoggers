@@ -223,7 +223,8 @@ logger_extract <- function(
     })
 
     #if the purr map occured more than once, flatten the list of lists
-    if (!all(seq_along(retrieve_data) <= 1)){list_of_dfs <- unlist(list_of_dfs, recursive = FALSE)}
+    #if (!all(seq_along(retrieve_data) <= 1)){
+    list_of_dfs <- unlist(list_of_dfs, recursive = FALSE)#}
 
   } else {#if the user wants to keep each dataframe intact
 
@@ -244,7 +245,7 @@ logger_extract <- function(
   if (all(Indicators == "turbidity")){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Indicator != "Chlorophyll_mgm3"))}
 
   #if the user wants to filter data by quality flag, do that (defaults to only having flags 1 and 2)
-  if (FilterFlags){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Flags %in% FlagTags))}
+  if (FilterFlags){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, .data$Flags %in% FlagTags))}
 
   #if the user wants to do some kind of aggregation
   if (Aggregate){
