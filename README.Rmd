@@ -86,7 +86,7 @@ The output of the function (regardless of if small tables is true or false) is a
 #| eval: FALSE
 
 #save
-purrr::walk2(data_extract, names(data_extract), ~readr::write_csv(.x, paste0(.y,".csv")))
+purrr::walk2(data_extract, names(data_extract), ~readr::write_csv(.x, paste0(.y, ".csv")))
 
 ```
 
@@ -94,3 +94,26 @@ where .x = data_extract, and .y = the names of items in the list:
 
 ![](man/figures/save_code_example.png)
 
+Should `SmallTables = TRUE` it is reccomended that files are saved within broader folders based on logger and year using the following code (again where .x = data_extract, and .y = the names of items in the list):
+
+```{r}
+#| eval: FALSE
+
+purrr::walk2(data_extract, names(data_extract), ~{
+
+  #create a folder name based on the first two elements of the dataframe name
+  folder_name <- paste(stringr::str_split(.y, pattern = "_")[[1]][1:2], collapse = "_")
+
+  #if you want to expand/move where the folder is located, do that here:
+  # folder_name <- paste0("path_to_location/", folder_name)
+
+  #if the folder doesnt already exist, create it
+  if (!dir.exists(folder_name)){dir.create(folder_name, recursive = TRUE)}
+
+  #save the dataframe inside the associated folder
+  readr::write_csv(.x, paste0(folder_name, "/", .y, ".csv"))
+
+  }
+)
+
+```
