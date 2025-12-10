@@ -5,17 +5,23 @@
 \title{Extract AIMS MMP Logger Data}
 \usage{
 logger_extract(
-  SelectedYears,
-  SelectedLoggers,
+  Years,
+  Loggers,
+  Indicators = c("chlorophyll", "turbidity"),
   FilterFlags = TRUE,
   FlagTags = c(1, 2),
-  AggregateToDaily = FALSE
+  Aggregate = FALSE,
+  AggregationType,
+  SmallTables = FALSE,
+  RowCount = 1500
 )
 }
 \arguments{
-\item{SelectedYears}{Numeric Vector. The year(s) of data you want to access.}
+\item{Years}{Numeric Vector. The year(s) of data you want to access.}
 
-\item{SelectedLoggers}{Character Vector. The name(s) of the logger(s) you want to access.}
+\item{Loggers}{Character Vector. The name(s) of the logger(s) you want to access.}
+
+\item{Indicators}{Character Vector. The name(s) of the indicators you want to access, can be Chlorophyll and/or Turbidity.}
 
 \item{FilterFlags}{Boolean. Do you want to filter the data by its quality flags? This defaults to TRUE (yes).}
 
@@ -23,20 +29,24 @@ logger_extract(
 1 = Good_data, 2 = Probably_good_data, 3 = Bad_data_that_are_potentially_correctable, 4 = Bad_data, 5 = Value_changed.
 Advice from data providers is to keep only tags 1 and 2. By default only tags 1 and 2 are kept.}
 
-\item{AggregateToDaily}{Boolean. Do you want to aggregate data to daily values? This defaults to FALSE (no) and returns
-15-minute interval data.}
+\item{Aggregate}{Boolean. Do you want to aggregate data to daily values? This defaults to FALSE (no) and returns
+10-minute interval data.}
+
+\item{AggregationType}{Character String. Defines the type of aggregation to apply, one of: Hourly, or Daily}
+
+\item{SmallTables}{Boolean. Do you want to return small tables (less than 1,500 rows per table). This defaults to FALSE (no)}
+
+\item{RowCount}{Numeric String. The number of rows in each "small table", defaults to 1500}
 }
 \value{
-A long format dataframe
+A list of dataframes
 }
 \description{
 Extract AIMS MMP Logger Data
 }
 \examples{
 wq_data <- logger_extract(
-SelectedYears = 2025, 
-SelectedLoggers = "BUR2", 
-FilterFlags = TRUE, 
-FlagTags = c(1,2), 
-AggregateToDaily = FALSE)
+Years = 2025, 
+Loggers = "BUR2"
+)
 }

@@ -1,9 +1,9 @@
 utils::globalVariables(c(
 "ncvar_get",
-"Concentration_Chlorophyll",
+"Result_Chlorophyll",
 "Flags_Chlorophyll",
 "Units_Chlorophyll",
-"Concentration_Turbidity",
+"Result_Turbidity",
 "Flags_Turbidity",
 "Units_Turbidity",
 "Time",
@@ -15,6 +15,6 @@ utils::globalVariables(c(
 "Logger",
 "Indicator",
 "Units",
-"Acknowledgement",
-"Concentration"
+"Attribution",
+"Result"
 ))

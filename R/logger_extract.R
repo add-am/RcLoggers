@@ -9,23 +9,18 @@
 #' Advice from data providers is to keep only tags 1 and 2. By default only tags 1 and 2 are kept.
 #' @param Aggregate Boolean. Do you want to aggregate data to daily values? This defaults to FALSE (no) and returns
 #' 10-minute interval data.
-#' @param AggreationType Character String. Defines the type of aggregation to apply, one of: Hourly, or Daily
+#' @param AggregationType Character String. Defines the type of aggregation to apply, one of: Hourly, or Daily
 #' @param SmallTables Boolean. Do you want to return small tables (less than 1,500 rows per table). This defaults to FALSE (no)
 #' @param RowCount Numeric String. The number of rows in each "small table", defaults to 1500
 #'
-#' @returns A long format dataframe
+#' @returns A list of dataframes
 #'
 #' @export
 #' 
 #' @examples
 #' wq_data <- logger_extract(
 #' Years = 2025, 
-#' Loggers = "BUR2", 
-#' FilterFlags = TRUE, 
-#' FlagTags = c(1,2), 
-#' Aggregate = FALSE,
-#' SmallTables = FALSE
-#' RowCount = 1500
+#' Loggers = "BUR2"
 #' )
 
 logger_extract <- function(
@@ -200,10 +195,7 @@ logger_extract <- function(
               
   })
 
-  #this returns a list the length of nrow(target_matrix)
-
-  #if the user wants to return small tables (rather than full series) slice up all the tables
-  if (SmallTables){
+  if (SmallTables){#if the user wants to return small tables (rather than full series) slice up all the tables
     
     #map over the list of datasets (plus the number of total datasets)
     list_of_dfs <- purrr::map2(retrieve_data, seq_along(retrieve_data), function(df, count){
@@ -233,14 +225,17 @@ logger_extract <- function(
     #if the purr map occured more than once, flatten the list of lists
     if (!all(seq_along(retrieve_data) <= 1)){list_of_dfs <- unlist(list_of_dfs, recursive = FALSE)}
 
-  } else {
+  } else {#if the user wants to keep each dataframe intact
 
-    #otherwise just update the object name
+    #map over the list of datasets and create a vector of names
+    table_names <- purrr::map(seq_along(retrieve_data), ~paste0(target_matrix[.x, 2], "_", target_matrix[.x, 1]))
+
+    #update the names of each item in the list
+    names(retrieve_data) <- table_names
+
+    #then update the object name
     list_of_dfs <- retrieve_data
-
   }
-
-  list_of_dfs
 
   #if the user only wants chla 
   if (all(Indicators == "chlorophyll")){list_of_dfs <- purrr::map(list_of_dfs, ~dplyr::filter(.x, Indicator != "Turbidity_ntu"))}
@@ -256,7 +251,7 @@ logger_extract <- function(
 
     if (AggregationType == "hourly"){
 
-      list_of_dfs <- purrr:::map(list_of_dfs, function(df){
+      list_of_dfs <- purrr::map(list_of_dfs, function(df){
 
         #round DateTime to the nearest hour, then group and summarise
         df |> 
@@ -288,29 +283,3 @@ logger_extract <- function(
   return(list_of_dfs)
 
 }
-
-
-
-test <- logger_extract(2025, "BUR2", Indicators = c("Turbidity")) #works
-test <- logger_extract(c(2024, 2025), "BUR2", Indicators = c("Chla", "Turbidity"))#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"))#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Turbidity"))#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla"))#works
-
-
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), FilterFlags = FALSE)#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), Aggregate = TRUE, AggregationType = "Hourly")#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), Aggregate = TRUE, AggregationType = "Daily")#works
-test <- logger_extract(c(2024, 2025), c("BUR2", "BUR4"), Indicators = c("Chla", "Turbidity"), SmallTables = TRUE, RowCount = 1500)#works
-
-
-
-#save
-purrr::map2(test_flat, names(test_flat), ~readr::write_csv(.x, paste0(.y,".csv")))
-
-
-readr::write_csv(test_flat[[1]], "test.csv")
-
-
-
-
